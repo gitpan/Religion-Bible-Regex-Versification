@@ -6,22 +6,33 @@ use Carp;
 
 use Religion::Bible::Regex::Reference;
 
-use version; our $VERSION = qv('0.1');
+use version; our $VERSION = '0.2';
 
+# There are four way to initialize a versification map
+# 1. Pass in a string representing the location of a versification file
+# 2. Pass in an array of verse pairs. Ex. [['Ge 1:1', 'Ge 1:2']]
+# 3. Pass in a hash of vers pairs. Ex. { 'Ge 1:1' => 'Ge 1:2' }
+# 4. Put the versification map in the YAML configuration file
 sub new {
     my ($class, $config, $regex, $versification_file) = @_;
     my ($self) = {};
     bless $self, $class;
 
-    $self->{regex} = $regex or confess 'Versification requires a ReferenceBiblique::Regex object';
-    $self->{config} = $config or confess 'Versification requires a ReferenceBiblique::Config object';
-#    $self->{file} = new ReferenceBiblique::Config($config->get('versification'), \%configuration_defaults); 
-#    $self->{file} = $versification_file;
+    $self->{config} = $config or confess 'Versification requires a Religion::Bible::Regex::Config object';
+    $self->{regex} = $regex   or confess 'Versification requires a Religion::Bible::Regex::Builder object';
 
-    if (-e $versification_file) {
+    # is the versification map defined in the config object?
+    if (defined($config->get_versification_configurations)) {
+	# Build the versification map from the configuration object
+	$self->{versification} = $self->normalize_map( $config->get_versification_configurations );
+
+    # does $versification_file exist?
+    } elsif (-e $versification_file) {
+	# Build the versification map from a file
 	$self->{versification} = $self->normalize_map( $self->parse_versification_map($versification_file) );
-    }
-    else {
+
+    # if $versification_file is an array or hash
+    } elsif (ref($versification_file) eq 'HASH' || ref($versification_file) eq 'ARRAY') {
 	$self->{versification} = $self->normalize_map( $versification_file );
     }
 
@@ -46,7 +57,7 @@ sub parse_versification_map {
     my $self = shift;
     my $config = $self->{config};
     my $map = shift;
-    my $r1 = new Religion::Bible::Regex::Reference($self->config, $self->regex);
+    my $r1 = new Religion::Bible::Regex::Reference($self->get_configuration, $self->get_regexes);
     my @versification_array;
 
     croak "Versification mapping is not defined\n" unless (defined($map));
@@ -62,7 +73,6 @@ sub parse_versification_map {
 	    next unless length;     # anything left?
 
 	    my ($key, $value) = split /,/;
-	    print "Key: " . $key . "   Value: " . $value . "\n";
 	    push @versification_array, [$key, $value];
 	} 
 	close ($list);
@@ -76,16 +86,35 @@ sub normalize_map {
     my $self = shift;
     my $map = shift;
     my %versification_map; 
+   
+    # Create a reusable Reference Object
+    my $r1 = new Religion::Bible::Regex::Reference($self->get_configuration, $self->get_regexes);
 
-    my $r1 = new Religion::Bible::Regex::Reference($self->{config}, $self->{regex});
-    foreach my $c (@{$map}) {
-	my $r2 = new Religion::Bible::Regex::Reference($self->{config}, $self->{regex});
-	$r1->parse($c->[0]); 
-	$r2->parse($c->[1]); 
-	my $normal = $r1->normalize('BOOK', 'BOOK');
-	$versification_map{"$normal"} = $r2;	
+    # versification_file is an array ... normalize it.
+    if ( ref($map) eq 'ARRAY' ) {
+	foreach my $c (@{$map}) {
+	    my $r2 = new Religion::Bible::Regex::Reference($self->get_configuration, $self->get_regexes);
+	    $r1->parse($c->[0]); 
+	    $r2->parse($c->[1]); 
+	    $versification_map{ $r1->normalize } = $r2;
+	}
+
+    # versification_file is an array ... normalize it.
+    } elsif ( ref($map) eq 'HASH' ) {
+	while ( my ($key, $value) = each(%$map) ) {   
+	    my $r2 = new Religion::Bible::Regex::Reference($self->get_configuration, $self->get_regexes);
+	    $r1->parse($key);
+	    $r2->parse($value); 
+	    $versification_map{ $r1->normalize } = $r2;
+	}
+	
+    # carp 
+    } else {
+	carp "versification_map must be either an array or a hash\n" 
+	    unless (ref($map) eq 'HASH' || ref($map) eq 'ARRAY');
     }
 
+    # if map is not a HASH or an ARRAY then an empty hash is returned
     return \%versification_map;
 }
 
@@ -108,7 +137,7 @@ sub decalage {
 
         return $dref1->interval($dref2);
     } else {
-    my $normalized_reference = $reference->normalize('BOOK','BOOK');
+	my $normalized_reference = $reference->normalize;
         if (defined($self->{versification}->{$normalized_reference})) {
             my $ref_decale = new Religion::Bible::Regex::Reference($self->get_configuration, $self->get_regexes);
 
@@ -123,23 +152,12 @@ sub decalage {
     return $reference;
 }
 
-# Module implementation here
-
-   # croak "RMP file not formatted correctly\n" unless (defined($key) && defined($value));
-   # 	    my $r2 = new Religion::Bible::Regex::Reference($self->regex, $self->config);
-   # 	    $r1->parse($key); 
-   # 	    $r2->parse($value); 
-   # 	    my $normal = $r1->normalize;
-   # 	    $versification_map{"$normal"} = $r2;
-
-
 1; # Magic true value required at end of module
 __END__
 
 =head1 NAME
 
-Religion::Bible::Regex::Versification - [One line description of module's purpose here]
-
+Religion::Bible::Regex::Versification - Translates Bible references between different versifications
 
 =head1 VERSION
 

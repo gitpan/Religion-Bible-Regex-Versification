@@ -1,16 +1,17 @@
 --- #YAML:1.0
 name:                Religion-Bible-Regex-Versification
-version:             v0.1
-abstract:            [One line description of module's purpose here]
+version:             0.2
+abstract:            Translates Bible references between different versifications
 license:             ~
 author:              
     - Daniel Holmlund <holmlund.dev@gmail.com>
 generated_by:        ExtUtils::MakeMaker version 6.42
 distribution_type:   module
 requires:     
-    Religion::Bible::Regex::Builder: v0.95
-    Religion::Bible::Regex::Config: v0.5
-    Religion::Bible::Regex::Reference: v0.9
+    Religion::Bible::Regex::Builder: 0
+    Religion::Bible::Regex::Config: 0
+    Religion::Bible::Regex::Reference: 0
+    Test::Deep:                    0
     Test::More:                    0
     version:                       0
 meta-spec:
